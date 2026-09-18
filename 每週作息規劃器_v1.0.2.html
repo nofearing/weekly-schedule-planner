@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>每週作息規劃器 v1.0.2</title>
+<style>
+:root{
+  --slot-h:44px; --time-w:86px; --header-h:52px;
+  --border:#d7dbe0; --bg:#f6f7f9; --text:#222; --muted:#667085; --toolbar-h:58px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,"Microsoft JhengHei",sans-serif;background:var(--bg);color:var(--text)}
+.app{max-width:1500px;margin:auto;padding:14px}
+.toolbar{
+  position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 2px 10px rgba(0,0,0,.05);margin-bottom:8px
+}
+.title{font-weight:700;font-size:20px;margin-right:8px}.spacer{flex:1}
+.context-bar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.context-bar select{
+  min-width:145px;padding:8px 30px 8px 10px;border:1px solid #cfd4dc;border-radius:8px;background:#fff;
+  font-family:inherit;font-size:14px
+}
+.context-label{font-size:12px;color:#667085}
+.stage-info{
+  display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;
+  padding:7px 11px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;
+  font-size:12px;color:#475467;line-height:1.5
+}
+.stage-info.show{display:flex}
+.stage-info .stage-meta{font-weight:700;color:#344054}
+.dropdown{position:relative}
+.dropdown>summary{
+  list-style:none;border:1px solid #cfd4dc;background:#fff;border-radius:8px;padding:8px 11px;
+  cursor:pointer;font-size:14px;user-select:none
+}
+.dropdown>summary::-webkit-details-marker{display:none}
+.dropdown>summary::after{content:" ▾";color:#667085}
+.dropdown[open]>summary{background:#f3f4f6}
+.menu{
+  position:absolute;right:0;top:calc(100% + 6px);z-index:100;min-width:170px;padding:6px;
+  background:#fff;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14)
+}
+.menu button,.menu .file-label{
+  display:block;width:100%;text-align:left;border:none;background:transparent;padding:9px 10px;border-radius:7px;
+  font-size:14px;cursor:pointer
+}
+.menu button:hover,.menu .file-label:hover{background:#f2f4f7}
+.menu .menu-danger{color:#b42318}
+button,.file-label{
+  border:1px solid #cfd4dc;background:#fff;border-radius:8px;padding:8px 11px;
+  cursor:pointer;font-size:14px;font-family:inherit
+}
+button:hover,.file-label:hover{background:#f3f4f6}
+button.primary{background:#ff8a3d;color:white;border-color:#ff8a3d}
+button.danger{color:#b42318}
+button.danger.armed{background:#b42318;color:white;border-color:#b42318}
+.legend{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:4px;border:1px solid rgba(0,0,0,.08)}
+.planner-wrap{
+  overflow:visible;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:12px;
+}
+.planner{min-width:1000px;position:relative}
+.head{
+  position:sticky;top:calc(var(--toolbar-h) + 4px);z-index:40;display:grid;grid-template-columns:var(--time-w) repeat(7,1fr);
+  background:#fff;border-bottom:1px solid var(--border);box-shadow:0 2px 4px rgba(0,0,0,.04)
+}
+.head>div{height:var(--header-h);display:flex;align-items:center;justify-content:center;font-weight:700;border-right:1px solid var(--border)}
+.head .weekend{color:#d92d20}
+.body{position:relative}
+.grid{display:grid;grid-template-columns:var(--time-w) repeat(7,1fr);grid-template-rows:repeat(34,var(--slot-h))}
+.timecell{
+  grid-column:1;border-right:1px solid var(--border);border-bottom:1px dotted #bfc5ce;
+  display:flex;align-items:start;justify-content:center;padding-top:3px;font-size:12px;background:#fff
+}
+.slot{border-right:1px dotted #bcc3cc;border-bottom:1px dotted #bcc3cc;background:#fff}
+.slot.weekend-bg{background:#fcfcfc}
+.events-layer{position:absolute;left:var(--time-w);right:0;top:0;height:calc(34 * var(--slot-h));pointer-events:none}
+.event{
+  position:absolute;border:1px solid rgba(0,0,0,.18);border-radius:7px;padding:5px 7px 13px;
+  overflow:hidden;cursor:grab;user-select:none;box-shadow:0 1px 2px rgba(0,0,0,.08);
+  pointer-events:auto;font-size:13px;touch-action:none
+}
+.event.dragging{opacity:.70;cursor:grabbing;z-index:40;outline:2px solid rgba(255,138,61,.5)}
+.event .name{font-weight:700;text-align:center;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event .time{font-size:11px;color:#475467;text-align:center;margin-top:2px;white-space:nowrap}
+.event .resize{position:absolute;left:0;right:0;bottom:0;height:9px;cursor:ns-resize;background:rgba(0,0,0,.05)}
+.hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6}
+dialog{border:none;border-radius:14px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(520px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dlg{padding:18px}.dlg h3{margin:0 0 10px}
+.copy-notice,.conflict-notice{
+  display:none;margin:0 0 14px;padding:9px 11px;border-radius:8px;font-size:13px;line-height:1.5
+}
+.copy-notice{background:#fff4e8;border:1px solid #ffd7b5;color:#9a4a00}
+.conflict-notice{background:#fff1f0;border:1px solid #ffccc7;color:#a8071a;white-space:pre-line}
+.copy-notice.show,.conflict-notice.show{display:block}
+.form{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center}
+.form input,.form select{width:100%;padding:9px;border:1px solid #cfd4dc;border-radius:8px}
+.dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.category-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.cat-row{display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center}
+.stage-card{
+  border:1px solid #e4e7ec;border-radius:10px;padding:10px;background:#fff;display:grid;gap:9px
+}
+.stage-card.active{border-color:#ffb47f;background:#fffaf6}
+.stage-card-top{display:grid;grid-template-columns:auto auto 1fr auto;gap:7px;align-items:center}
+.stage-order{display:flex;gap:4px}
+.stage-order button{padding:6px 8px}
+.stage-card input[type=text],.stage-card input[type=month],.stage-card textarea{
+  width:100%;padding:8px;border:1px solid #cfd4dc;border-radius:8px;font-family:inherit
+}
+.stage-card textarea{resize:vertical;min-height:58px}
+.stage-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stage-field label{display:block;font-size:11px;color:#667085;margin-bottom:4px}
+.cat-row input[type=color]{width:40px;height:36px;padding:2px;border:1px solid #cfd4dc;border-radius:8px;background:#fff}
+.cat-row input[type=text]{padding:8px;border:1px solid #cfd4dc;border-radius:8px}
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+  z-index:9999;background:#1f2937;color:#fff;padding:10px 14px;border-radius:9px;
+  box-shadow:0 8px 30px rgba(0,0,0,.22);font-size:14px;opacity:0;pointer-events:none;
+  transition:.18s;max-width:min(560px,90vw);text-align:center
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#importFile{display:none}
+@media(max-width:800px){html,body{overflow-x:auto}.app{padding:6px}.toolbar{border-radius:0}}
+
+.print-header{display:none}
+
+body.printing{
+  --slot-h:20px;
+  background:#fff;
+}
+body.printing .app{
+  width:194mm;
+  max-width:none;
+  margin:0 auto;
+  padding:0;
+}
+body.printing .toolbar,
+body.printing .stage-info,
+body.printing .hint{
+  display:none !important;
+}
+body.printing .print-header{
+  display:block;
+  width:194mm;
+  margin:0 auto 4mm;
+  color:#111;
+}
+body.printing .print-title{
+  font-size:16px;
+  font-weight:700;
+  text-align:center;
+  margin-bottom:2mm;
+}
+body.printing .print-meta{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+  font-size:10px;
+  margin-bottom:1.5mm;
+}
+body.printing .print-note{
+  font-size:9px;
+  line-height:1.35;
+  text-align:center;
+  margin-bottom:2mm;
+}
+body.printing .print-legend{
+  display:flex;
+  justify-content:center;
+  gap:7px;
+  flex-wrap:wrap;
+  font-size:8px;
+}
+body.printing .print-legend .dot{
+  width:8px;height:8px;margin-right:2px;
+}
+body.printing .planner-wrap{
+  max-height:none;
+  overflow:visible;
+  border:1px solid #999;
+  border-radius:0;
+}
+body.printing .planner{
+  min-width:0;
+  width:194mm;
+}
+body.printing .head{
+  position:static;
+  grid-template-columns:48px repeat(7,1fr);
+  box-shadow:none;
+}
+body.printing .head>div{
+  height:24px;
+  font-size:9px;
+  border-color:#999;
+}
+body.printing .grid{
+  grid-template-columns:48px repeat(7,1fr);
+}
+body.printing .timecell{
+  font-size:7px;
+  padding-top:1px;
+  border-color:#aaa;
+}
+body.printing .slot{
+  border-color:#aaa;
+}
+body.printing .events-layer{
+  left:48px;
+}
+body.printing .event{
+  border-radius:2px;
+  padding:1px 2px 1px;
+  box-shadow:none;
+  font-size:7.5px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1.05;
+  overflow:hidden;
+}
+body.printing .event .name{
+  white-space:normal;
+  overflow:hidden;
+  text-overflow:clip;
+  text-align:center;
+  line-height:1.05;
+}
+body.printing .event .time,
+body.printing .event .resize{
+  display:none !important;
+}
+
+@media print{
+  @page{
+    size:A4 portrait;
+    margin:8mm;
+  }
+  html,body{
+    width:210mm;
+    min-height:297mm;
+    margin:0 !important;
+    padding:0 !important;
+    background:#fff !important;
+  }
+  body{
+    -webkit-print-color-adjust:exact !important;
+    print-color-adjust:exact !important;
+  }
+  body:not(.printing) .toolbar,
+  body:not(.printing) .stage-info,
+  body:not(.printing) .hint{
+    display:none !important;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="toolbar">
+    <div class="title">每週作息規劃器 <span style="font-size:12px;color:#98a2b3">v1.0.2</span></div>
+
+    <div class="context-bar">
+      <span class="context-label">人員</span>
+      <select id="personSelect"></select>
+      <span class="context-label">階段</span>
+      <select id="stageSelect"></select>
+    </div>
+
+    <button type="button" class="primary" id="addBtn">＋ 新增活動</button>
+    <button type="button" id="printBtn">列印</button>
+
+    <details class="dropdown" id="moreMenu">
+      <summary>更多</summary>
+      <div class="menu">
+        <button type="button" id="copyDayBtn">複製整天</button>
+        <button type="button" id="catBtn">類別管理</button>
+      </div>
+    </details>
+
+    <details class="dropdown" id="dataMenu">
+      <summary>資料</summary>
+      <div class="menu">
+        <button type="button" id="exportBtn">匯出 JSON</button>
+        <label class="file-label" for="importFile">匯入 JSON</label>
+        <input id="importFile" type="file" accept=".json,application/json">
+        <button type="button" id="resetBtn" class="menu-danger">還原目前階段為範例</button>
+      </div>
+    </details>
+
+    <div class="spacer"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div id="stageInfo" class="stage-info"></div>
+
+  <div id="printHeader" class="print-header">
+    <div id="printTitle" class="print-title"></div>
+    <div id="printMeta" class="print-meta"></div>
+    <div id="printNote" class="print-note"></div>
+    <div id="printLegend" class="print-legend"></div>
+  </div>
+
+  <div class="planner-wrap">
+    <div class="planner">
+      <div class="head">
+        <div>時間段</div>
+        <div>星期一</div><div>星期二</div><div>星期三</div><div>星期四</div><div>星期五</div>
+        <div class="weekend">星期六</div><div class="weekend">星期日</div>
+      </div>
+      <div class="body">
+        <div class="grid" id="grid"></div>
+        <div class="events-layer" id="eventsLayer"></div>
+      </div>
+    </div>
+  </div>
+  <div class="hint">
+    拖曳到空白時段＝直接移動；拖曳到另一張卡片＝兩張卡片交換位置，不推動其他卡片。
+    上方直接切換「人員」與「階段」；管理功能藏在各自下拉選單最下方。「更多」放複製整天與類別管理，「資料」集中匯入、匯出與還原；「列印」會自動排成單頁 A4 直式。階段可保存日期範圍、備註與排序。
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<dialog id="eventDialog">
+  <div class="dlg">
+    <h3 id="dlgTitle">新增活動</h3>
+    <div id="copyNotice" class="copy-notice">已建立活動複本。這是一筆新活動，修改後按「儲存」；原活動不會被變更。</div>
+    <div id="conflictNotice" class="conflict-notice"></div>
+    <div class="form">
+      <label>名稱</label><input id="fName">
+      <label>星期</label>
+      <select id="fDay">
+        <option value="0">星期一</option><option value="1">星期二</option><option value="2">星期三</option>
+        <option value="3">星期四</option><option value="4">星期五</option><option value="5">星期六</option><option value="6">星期日</option>
+      </select>
+      <label>開始</label><input id="fStart" type="time" step="1800">
+      <label>結束</label><input id="fEnd" type="time" step="1800">
+      <label>類別</label><select id="fCat"></select>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" id="deleteBtn" class="danger">刪除</button>
+      <button type="button" id="copyBtn">複製為新活動</button>
+      <button type="button" id="repeatBtn">套用到其他星期</button>
+      <button type="button" id="cancelBtn">取消</button>
+      <button type="button" id="saveBtn" class="primary">儲存</button>
+    </div>
+  </div>
+</dialog>
+
+
+
+<dialog id="personDialog">
+  <div class="dlg">
+    <h3>人員管理</h3>
+    <div style="font-size:13px;color:#667085;margin-bottom:12px">
+      每位人員都有自己的「成長階段」與一週作息。切換人員不會覆蓋其他人的資料。
+    </div>
+    <div id="personList" class="category-list"></div>
+    <div class="dlg-actions">
+      <button type="button" id="addPersonBtn">＋ 新增人員</button>
+      <button type="button" id="closePersonBtn" class="primary">完成</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="stageDialog">
+  <div class="dlg">
+    <h3>階段管理</h3>
+    <div style="font-size:13px;color:#667085;margin-bottom:12px">
+      階段可保存不同時期的作息。可調整排序、日期範圍與備註；新增階段時可從目前階段複製作息，之後彼此獨立。
+    </div>
+    <div id="stageList" class="category-list"></div>
+    <div class="dlg-actions">
+      <button type="button" id="addStageBtn">＋ 新增階段</button>
+      <button type="button" id="closeStageBtn" class="primary">完成</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="addStageDialog">
+  <div class="dlg">
+    <h3>新增階段</h3>
+    <div class="form">
+      <label>階段名稱</label><input id="newStageName" placeholder="例如：小六上、2026 暑假">
+      <label>建立方式</label>
+      <select id="newStageMode">
+        <option value="copy">複製目前階段作息</option>
+        <option value="blank">建立空白作息</option>
+      </select>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" id="addStageCancelBtn">取消</button>
+      <button type="button" id="addStageSaveBtn" class="primary">建立階段</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="repeatDialog">
+  <div class="dlg">
+    <h3>套用到其他星期</h3>
+    <div style="font-size:13px;color:#667085;margin-bottom:12px">
+      會以目前活動的名稱、時間與類別建立副本；若任何目標星期同時段已有活動，整次操作都不會執行。
+    </div>
+    <div id="repeatSummary" style="padding:10px 12px;background:#f7f7f8;border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
+    <div id="repeatDays" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"></div>
+    <div id="repeatConflict" class="conflict-notice"></div>
+    <div class="dlg-actions">
+      <button type="button" id="repeatCancelBtn">取消</button>
+      <button type="button" id="repeatSaveBtn" class="primary">建立副本</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="copyDayDialog">
+  <div class="dlg">
+    <h3>複製整天作息</h3>
+    <div style="font-size:13px;color:#667085;margin-bottom:12px">
+      選擇來源星期與目標星期。為避免不小心破壞既有資料，預設只允許複製到「完全沒有活動」的星期。
+    </div>
+    <div class="form">
+      <label>來源星期</label>
+      <select id="copyDaySource">
+        <option value="0">星期一</option><option value="1">星期二</option><option value="2">星期三</option>
+        <option value="3">星期四</option><option value="4">星期五</option><option value="5">星期六</option><option value="6">星期日</option>
+      </select>
+      <label>目標星期</label>
+      <select id="copyDayTarget">
+        <option value="0">星期一</option><option value="1">星期二</option><option value="2">星期三</option>
+        <option value="3">星期四</option><option value="4">星期五</option><option value="5">星期六</option><option value="6">星期日</option>
+      </select>
+    </div>
+    <div style="margin-top:12px">
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.5">
+        <input type="checkbox" id="replaceTargetDay" style="margin-top:3px">
+        <span><b>取代目標日原有作息</b><br><span style="color:#667085">勾選後會先刪除目標星期全部活動，再複製來源日。</span></span>
+      </label>
+    </div>
+    <div id="copyDayConflict" class="conflict-notice"></div>
+    <div class="dlg-actions">
+      <button type="button" id="copyDayCancelBtn">取消</button>
+      <button type="button" id="copyDaySaveBtn" class="primary">複製整天</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="catDialog">
+  <div class="dlg">
+    <h3>類別管理</h3>
+    <div style="font-size:13px;color:#667085;margin-bottom:8px">類別名稱與顏色都可以自行修改，匯出資料時會一起保存。</div>
+    <div class="category-list" id="categoryList"></div>
+    <div class="dlg-actions">
+      <button type="button" id="addCatBtn">＋ 新增類別</button>
+      <button type="button" id="closeCatBtn" class="primary">完成</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+const START_MIN=360, END_MIN=1380, SLOT=30, SLOT_H=44;
+const STORAGE_KEY="weekly_planner_v10";
+const LEGACY_KEY="weekly_planner_v09";
+
+const defaultCategories=[
+  {id:"c1",name:"上學",color:"#dceaf7"},
+  {id:"c2",name:"羽球",color:"#d9edcf"},
+  {id:"c3",name:"學習",color:"#fff0b8"},
+  {id:"c4",name:"自由",color:"#f8dfcf"},
+  {id:"c5",name:"生活",color:"#ececec"},
+  {id:"c6",name:"餐食／休息",color:"#f7f7f7"}
+];
+
+const sampleEvents=[
+{id:1,day:0,start:"06:30",end:"07:00",name:"起床",cat:"c5"},{id:2,day:0,start:"07:00",end:"07:30",name:"早餐",cat:"c6"},{id:3,day:0,start:"07:30",end:"16:00",name:"上學",cat:"c1"},{id:4,day:0,start:"16:00",end:"16:30",name:"休息＋路程",cat:"c6"},{id:5,day:0,start:"16:30",end:"18:30",name:"培訓隊",cat:"c2"},{id:6,day:0,start:"18:30",end:"19:00",name:"晚餐＋路程",cat:"c6"},{id:7,day:0,start:"19:00",end:"21:00",name:"作文課",cat:"c3"},{id:8,day:0,start:"21:00",end:"21:30",name:"路程＋休息",cat:"c5"},{id:9,day:0,start:"22:00",end:"22:30",name:"就寢",cat:"c5"},
+{id:10,day:1,start:"06:30",end:"07:00",name:"起床",cat:"c5"},{id:11,day:1,start:"07:00",end:"07:30",name:"早餐",cat:"c6"},{id:12,day:1,start:"07:30",end:"16:00",name:"上學",cat:"c1"},{id:13,day:1,start:"16:00",end:"16:30",name:"休息＋路程",cat:"c6"},{id:14,day:1,start:"16:30",end:"18:30",name:"培訓隊",cat:"c2"},{id:15,day:1,start:"18:30",end:"19:00",name:"晚餐＋路程",cat:"c6"},{id:16,day:1,start:"19:00",end:"21:00",name:"佳音英語",cat:"c3"},{id:17,day:1,start:"21:00",end:"21:30",name:"路程＋休息",cat:"c5"},{id:18,day:1,start:"22:00",end:"22:30",name:"就寢",cat:"c5"},
+{id:19,day:2,start:"06:30",end:"07:00",name:"起床",cat:"c5"},{id:20,day:2,start:"07:00",end:"07:30",name:"早餐",cat:"c6"},{id:21,day:2,start:"07:30",end:"12:30",name:"上學",cat:"c1"},{id:22,day:2,start:"12:30",end:"16:00",name:"自由運用",cat:"c4"},{id:23,day:2,start:"16:00",end:"16:30",name:"休息＋路程",cat:"c6"},{id:24,day:2,start:"16:30",end:"19:30",name:"培訓隊",cat:"c2"},{id:25,day:2,start:"19:30",end:"20:00",name:"晚餐",cat:"c6"},{id:26,day:2,start:"20:00",end:"21:00",name:"休息",cat:"c5"},{id:27,day:2,start:"21:00",end:"21:30",name:"線上英語",cat:"c3"},{id:28,day:2,start:"22:00",end:"22:30",name:"就寢",cat:"c5"},
+{id:29,day:3,start:"06:30",end:"07:00",name:"起床",cat:"c5"},{id:30,day:3,start:"07:00",end:"07:30",name:"早餐",cat:"c6"},{id:31,day:3,start:"07:30",end:"16:00",name:"上學",cat:"c1"},{id:32,day:3,start:"16:00",end:"16:30",name:"休息＋路程",cat:"c6"},{id:33,day:3,start:"16:30",end:"19:30",name:"培訓隊",cat:"c2"},{id:34,day:3,start:"19:30",end:"20:00",name:"晚餐",cat:"c6"},{id:35,day:3,start:"20:00",end:"20:30",name:"休息",cat:"c5"},{id:36,day:3,start:"20:30",end:"21:00",name:"線上英語",cat:"c3"},{id:37,day:3,start:"21:00",end:"21:30",name:"路程＋休息",cat:"c5"},{id:38,day:3,start:"22:00",end:"22:30",name:"就寢",cat:"c5"},
+{id:39,day:4,start:"06:30",end:"07:00",name:"起床",cat:"c5"},{id:40,day:4,start:"07:00",end:"07:30",name:"早餐",cat:"c6"},{id:41,day:4,start:"07:30",end:"16:00",name:"上學",cat:"c1"},{id:42,day:4,start:"16:00",end:"16:30",name:"休息＋路程",cat:"c6"},{id:43,day:4,start:"16:30",end:"18:30",name:"培訓隊",cat:"c2"},{id:44,day:4,start:"18:30",end:"19:00",name:"晚餐＋路程",cat:"c6"},{id:45,day:4,start:"19:00",end:"21:00",name:"佳音英語",cat:"c3"},{id:46,day:4,start:"21:00",end:"21:30",name:"路程＋休息",cat:"c5"},{id:47,day:4,start:"22:00",end:"22:30",name:"就寢",cat:"c5"},
+{id:48,day:5,start:"07:30",end:"08:00",name:"起床",cat:"c5"},{id:49,day:5,start:"08:00",end:"09:00",name:"晨練",cat:"c2"},{id:50,day:5,start:"09:00",end:"12:00",name:"培訓隊",cat:"c2"},{id:51,day:5,start:"12:00",end:"12:30",name:"休息＋路程",cat:"c6"},{id:52,day:5,start:"12:30",end:"13:00",name:"午餐",cat:"c6"},{id:53,day:5,start:"13:00",end:"13:30",name:"休息＋路程",cat:"c6"},{id:54,day:5,start:"13:30",end:"15:00",name:"教練課",cat:"c2"},{id:55,day:5,start:"15:00",end:"17:30",name:"自由運用",cat:"c4"},{id:56,day:5,start:"17:30",end:"19:30",name:"晚餐",cat:"c5"},{id:57,day:5,start:"19:30",end:"20:30",name:"自由運用",cat:"c4"},{id:58,day:5,start:"20:30",end:"21:00",name:"線上英語",cat:"c3"},{id:59,day:5,start:"21:00",end:"22:00",name:"自由運用",cat:"c4"},{id:60,day:5,start:"22:00",end:"22:30",name:"就寢",cat:"c5"},
+{id:61,day:6,start:"07:30",end:"08:00",name:"起床",cat:"c5"},{id:62,day:6,start:"08:00",end:"09:00",name:"晨練",cat:"c2"},{id:63,day:6,start:"09:00",end:"12:00",name:"培訓隊",cat:"c2"},{id:64,day:6,start:"12:00",end:"12:30",name:"休息＋路程",cat:"c6"},{id:65,day:6,start:"12:30",end:"13:00",name:"午餐",cat:"c6"},{id:66,day:6,start:"13:00",end:"17:30",name:"自由運用",cat:"c4"},{id:67,day:6,start:"17:30",end:"19:30",name:"晚餐",cat:"c5"},{id:68,day:6,start:"19:30",end:"20:30",name:"自由運用",cat:"c4"},{id:69,day:6,start:"20:30",end:"21:00",name:"線上英語",cat:"c3"},{id:70,day:6,start:"21:00",end:"22:00",name:"自由運用",cat:"c4"},{id:71,day:6,start:"22:00",end:"22:30",name:"就寢",cat:"c5"}
+];
+
+let state={people:[],categories:[]};
+let activePersonId=null, activeStageId=null;
+let editingId=null, nextId=1000, isCopyMode=false, deleteArmed=false, deleteTimer=null;
+
+const $=id=>document.getElementById(id);
+const grid=$("grid"), layer=$("eventsLayer"), eventDialog=$("eventDialog"), catDialog=$("catDialog");
+const fName=$("fName"),fDay=$("fDay"),fStart=$("fStart"),fEnd=$("fEnd"),fCat=$("fCat");
+const deleteBtn=$("deleteBtn"),copyBtn=$("copyBtn"),repeatBtn=$("repeatBtn"),copyNotice=$("copyNotice"),conflictNotice=$("conflictNotice");
+const toast=$("toast"), repeatDialog=$("repeatDialog"), copyDayDialog=$("copyDayDialog"), personDialog=$("personDialog"), stageDialog=$("stageDialog"), addStageDialog=$("addStageDialog");
+
+function mins(t){const [h,m]=t.split(":").map(Number);return h*60+m}
+function hhmm(m){return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0")}
+function snap(m){return Math.round(m/SLOT)*SLOT}
+function slotHeight(){return document.body.classList.contains("printing")?20:SLOT_H}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]))}
+function duration(e){return mins(e.end)-mins(e.start)}
+function overlap(a,b){return Number(a.day)===Number(b.day)&&mins(a.start)<mins(b.end)&&mins(b.start)<mins(a.end)}
+function overlapsOf(candidate,excludeIds=[]){
+  const ids=new Set(excludeIds.map(String));
+  return currentEvents().filter(e=>!ids.has(String(e.id))&&overlap(candidate,e));
+}
+function inBounds(e){return mins(e.start)>=START_MIN&&mins(e.end)<=END_MIN&&mins(e.end)>mins(e.start)}
+function showToast(msg){
+  toast.textContent=msg;toast.classList.add("show");clearTimeout(showToast.t);
+  showToast.t=setTimeout(()=>toast.classList.remove("show"),2000);
+}
+
+function currentPerson(){return state.people.find(p=>p.id===activePersonId)||state.people[0]}
+function currentStage(){
+  const p=currentPerson();
+  return p?.stages.find(s=>s.id===activeStageId)||p?.stages[0];
+}
+function currentEvents(){return currentStage()?.events||[]}
+function setCurrentEvents(events){const s=currentStage();if(s)s.events=events}
+function allEventIds(){return state.people.flatMap(p=>p.stages.flatMap(s=>s.events.map(e=>Number(e.id)||0)))}
+function refreshNextId(){nextId=Math.max(1000,...allEventIds())+1}
+function save(){
+  state.activePersonId=activePersonId;
+  state.activeStageId=activeStageId;
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(state))
+}
+function load(){
+  let raw=localStorage.getItem(STORAGE_KEY);
+  if(!raw) raw=localStorage.getItem(LEGACY_KEY);
+  let loaded=null;
+  if(raw){try{loaded=JSON.parse(raw)}catch{}}
+
+  // v0.6 舊資料：{events,categories}
+  if(loaded && Array.isArray(loaded.events)){
+    const pid="p"+Date.now();
+    const sid="s"+(Date.now()+1);
+    const pid2="p"+(Date.now()+2);
+    const sid2="s"+(Date.now()+3);
+    state={
+      people:[
+        {id:pid,name:"孩子 1",stages:[{id:sid,name:"目前階段",startMonth:"",endMonth:"",note:"",events:clone(loaded.events)}]},
+        {id:pid2,name:"孩子 2",stages:[{id:sid2,name:"目前階段",startMonth:"",endMonth:"",note:"",events:[]}]}
+      ],
+      categories:Array.isArray(loaded.categories)&&loaded.categories.length?clone(loaded.categories):clone(defaultCategories)
+    };
+    activePersonId=pid;activeStageId=sid;
+  }else if(loaded && Array.isArray(loaded.people)){
+    state=loaded;
+    if(!Array.isArray(state.categories)||!state.categories.length)state.categories=clone(defaultCategories);
+    activePersonId=state.activePersonId||state.people[0]?.id;
+    const p=state.people.find(x=>x.id===activePersonId)||state.people[0];
+    activeStageId=state.activeStageId||p?.stages?.[0]?.id;
+  }else{
+    const pid1="p1",pid2="p2",sid1="s1",sid2="s2";
+    state={
+      people:[
+        {id:pid1,name:"孩子 1",stages:[{id:sid1,name:"目前階段",startMonth:"",endMonth:"",note:"",events:clone(sampleEvents)}]},
+        {id:pid2,name:"孩子 2",stages:[{id:sid2,name:"目前階段",startMonth:"",endMonth:"",note:"",events:[]}]}
+      ],
+      categories:clone(defaultCategories)
+    };
+    activePersonId=pid1;activeStageId=sid1;
+  }
+
+  // 防呆
+  if(!state.people.length){
+    state.people=[{id:"p1",name:"孩子 1",stages:[{id:"s1",name:"目前階段",startMonth:"",endMonth:"",note:"",events:[]}]}];
+    activePersonId="p1";activeStageId="s1";
+  }
+  state.people.forEach(p=>{
+    if(!Array.isArray(p.stages)||!p.stages.length)p.stages=[{id:"s"+Date.now()+Math.random(),name:"目前階段",startMonth:"",endMonth:"",note:"",events:[]}];
+    p.stages.forEach(s=>{
+      if(!Array.isArray(s.events))s.events=[];
+      if(typeof s.startMonth!=="string")s.startMonth="";
+      if(typeof s.endMonth!=="string")s.endMonth="";
+      if(typeof s.note!=="string")s.note="";
+    });
+  });
+  if(!currentPerson())activePersonId=state.people[0].id;
+  if(!currentStage())activeStageId=currentPerson().stages[0].id;
+
+  // 舊類別字串遷移
+  const map={school:"c1",badminton:"c2",study:"c3",free:"c4",life:"c5",meal:"c6"};
+  state.people.forEach(p=>p.stages.forEach(s=>s.events.forEach(e=>{if(map[e.cat])e.cat=map[e.cat]})));
+
+  refreshNextId();
+  save();
+}
+
+
+function initGrid(){
+  grid.innerHTML="";
+  const rows=(END_MIN-START_MIN)/SLOT;
+  for(let r=0;r<rows;r++){
+    const t=document.createElement("div");t.className="timecell";t.style.gridRow=r+1;t.textContent=hhmm(START_MIN+r*SLOT);grid.appendChild(t);
+    for(let d=0;d<7;d++){
+      const s=document.createElement("div");s.className="slot"+(d>=5?" weekend-bg":"");
+      s.style.gridColumn=d+2;s.style.gridRow=r+1;
+      s.addEventListener("dblclick",()=>openEventDialog(null,{day:d,start:hhmm(START_MIN+r*SLOT),end:hhmm(START_MIN+(r+1)*SLOT),name:"",cat:state.categories[0].id},false));
+      grid.appendChild(s);
+    }
+  }
+}
+function category(id){return state.categories.find(c=>c.id===id)||state.categories[0]}
+function renderLegend(){$("legend").innerHTML=state.categories.map(c=>`<span><i class="dot" style="background:${c.color}"></i>${esc(c.name)}</span>`).join("")}
+function fillCats(){fCat.innerHTML=state.categories.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}
+function render(){
+  renderLegend();fillCats();layer.innerHTML="";
+  const dayW=layer.clientWidth/7;
+  for(const e of currentEvents()){
+    const sh=slotHeight();
+    const top=((mins(e.start)-START_MIN)/SLOT)*sh;
+    const h=Math.max(sh,(duration(e)/SLOT)*sh);
+    const el=document.createElement("div");el.className="event";el.dataset.id=e.id;
+    el.style.left=(e.day*dayW+2)+"px";el.style.width=(dayW-4)+"px";el.style.top=(top+1)+"px";el.style.height=(h-2)+"px";
+    el.style.background=category(e.cat).color;
+    el.innerHTML=`<div class="name">${esc(e.name)}</div><div class="time">${e.start}–${e.end}</div><div class="resize"></div>`;
+    el.addEventListener("dblclick",ev=>{ev.stopPropagation();openEventDialog(e.id,null,false)});
+    attachDrag(el,e);attachResize(el,e);layer.appendChild(el);
+  }
+}
+
+function attachDrag(el,e){
+  el.addEventListener("pointerdown",ev=>{
+    if(ev.target.classList.contains("resize"))return;
+    const sx=ev.clientX,sy=ev.clientY;
+    const before=clone(currentEvents());
+    const original=clone(e);
+    const dur=duration(e);
+    let dragging=false;
+
+    const move=mv=>{
+      const dx=mv.clientX-sx,dy=mv.clientY-sy;
+      if(!dragging&&Math.hypot(dx,dy)<6)return;
+      if(!dragging){dragging=true;el.classList.add("dragging")}
+      mv.preventDefault();
+      const rect=layer.getBoundingClientRect(),dayW=rect.width/7;
+      e.day=Math.max(0,Math.min(6,original.day+Math.round(dx/dayW)));
+      const ns=Math.max(START_MIN,Math.min(END_MIN-dur,mins(original.start)+snap(dy/SLOT_H*SLOT)));
+      e.start=hhmm(ns);e.end=hhmm(ns+dur);render();
+    };
+
+    const up=()=>{
+      document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);
+      if(!dragging)return;
+
+      const collisions=overlapsOf(e,[e.id]);
+      if(collisions.length===0){
+        save();render();showToast("活動已移動。");return;
+      }
+
+      if(collisions.length>1){
+        setCurrentEvents(before);render();showToast("一次只能和一張卡片交換；此位置同時碰到多張卡片，已取消。");return;
+      }
+
+      const target=collisions[0];
+      const targetBefore=before.find(x=>String(x.id)===String(target.id));
+      const movedBefore=before.find(x=>String(x.id)===String(e.id));
+      if(!targetBefore||!movedBefore){setCurrentEvents(before);render();return}
+
+      // 交換「起始位置」，各自保留原本時長。
+      const movedDur=duration(movedBefore),targetDur=duration(targetBefore);
+      e.day=targetBefore.day;e.start=targetBefore.start;e.end=hhmm(mins(targetBefore.start)+movedDur);
+      target.day=movedBefore.day;target.start=movedBefore.start;target.end=hhmm(mins(movedBefore.start)+targetDur);
+
+      const badBounds=!inBounds(e)||!inBounds(target);
+      const movedHits=overlapsOf(e,[e.id,target.id]);
+      const targetHits=overlapsOf(target,[e.id,target.id]);
+
+      if(badBounds||movedHits.length||targetHits.length){
+        setCurrentEvents(before);render();
+        showToast("兩張卡片長度不同，交換後會碰到第三張卡片或超出時間範圍，因此已取消。");
+        return;
+      }
+
+      save();render();showToast(`已交換「${movedBefore.name}」與「${targetBefore.name}」的位置。`);
+    };
+
+    document.addEventListener("pointermove",move);
+    document.addEventListener("pointerup",up,{once:true});
+  });
+}
+
+function attachResize(el,e){
+  el.querySelector(".resize").addEventListener("pointerdown",ev=>{
+    ev.preventDefault();ev.stopPropagation();
+    const sy=ev.clientY,before=clone(currentEvents()),origEnd=mins(e.end),start=mins(e.start);
+    const move=mv=>{
+      const ne=Math.max(start+SLOT,Math.min(END_MIN,origEnd+snap((mv.clientY-sy)/SLOT_H*SLOT)));
+      e.end=hhmm(ne);render();
+    };
+    const up=()=>{
+      document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);
+      if(overlapsOf(e,[e.id]).length){
+        setCurrentEvents(before);render();showToast("調整後會與其他活動重疊，已取消。");
+      }else{save();render();showToast("活動長度已調整。")}
+    };
+    document.addEventListener("pointermove",move);
+    document.addEventListener("pointerup",up,{once:true});
+  });
+}
+
+function resetDeleteButton(){
+  deleteArmed=false;clearTimeout(deleteTimer);
+  deleteBtn.textContent="刪除";deleteBtn.classList.remove("armed");
+}
+function openEventDialog(id,preset,copyMode){
+  editingId=id;isCopyMode=copyMode;resetDeleteButton();
+  conflictNotice.classList.remove("show");conflictNotice.textContent="";
+  const e=id!=null?currentEvents().find(x=>String(x.id)===String(id)):(preset||{day:0,start:"18:00",end:"18:30",name:"",cat:state.categories[0].id});
+  if(!e){showToast("找不到這筆活動。");return}
+  $("dlgTitle").textContent=copyMode?"複製活動":(id!=null?"編輯活動":"新增活動");
+  copyNotice.classList.toggle("show",!!copyMode);
+  fillCats();fName.value=e.name||"";fDay.value=e.day;fStart.value=e.start;fEnd.value=e.end;fCat.value=e.cat||state.categories[0].id;
+  deleteBtn.style.display=id!=null?"inline-block":"none";copyBtn.style.display=id!=null?"inline-block":"none";repeatBtn.style.display=id!=null?"inline-block":"none";
+  if(!eventDialog.open)eventDialog.showModal();
+}
+
+$("addBtn").addEventListener("click",()=>openEventDialog(null,null,false));
+$("cancelBtn").addEventListener("click",()=>{resetDeleteButton();eventDialog.close()});
+
+$("saveBtn").addEventListener("click",()=>{
+  resetDeleteButton();conflictNotice.classList.remove("show");
+  if(!fName.value.trim()){showToast("請輸入活動名稱。");return}
+  const candidate={id:editingId,name:fName.value.trim(),day:Number(fDay.value),start:fStart.value,end:fEnd.value,cat:fCat.value};
+  if(!inBounds(candidate)){showToast("時間必須介於 06:00–23:00，且結束時間要晚於開始時間。");return}
+  const hits=overlapsOf(candidate,editingId==null?[]:[editingId]);
+  if(hits.length){
+    conflictNotice.textContent="這個時段已被占用，不能儲存：\n"+hits.map(x=>`「${x.name}」 ${x.start}–${x.end}`).join("\n");
+    conflictNotice.classList.add("show");return;
+  }
+  if(editingId!=null){
+    const idx=currentEvents().findIndex(x=>String(x.id)===String(editingId));
+    if(idx<0){showToast("找不到這筆活動。");return}
+    currentEvents()[idx]={...currentEvents()[idx],...candidate};
+  }else{
+    currentEvents().push({...candidate,id:nextId++});
+  }
+  save();eventDialog.close();render();showToast(editingId!=null?"活動已更新。":"新活動已建立。");
+});
+
+deleteBtn.addEventListener("click",()=>{
+  if(editingId==null)return;
+  if(!deleteArmed){
+    deleteArmed=true;deleteBtn.textContent="再按一次確認刪除";deleteBtn.classList.add("armed");
+    deleteTimer=setTimeout(resetDeleteButton,3500);
+    return;
+  }
+  const idx=currentEvents().findIndex(x=>String(x.id)===String(editingId));
+  if(idx<0){showToast("找不到這筆活動。");resetDeleteButton();return}
+  const name=currentEvents()[idx].name;
+  currentEvents().splice(idx,1);
+  save();resetDeleteButton();editingId=null;eventDialog.close();render();showToast(`已刪除「${name}」。`);
+});
+
+copyBtn.addEventListener("click",()=>{
+  if(editingId==null)return;
+  const src=currentEvents().find(x=>String(x.id)===String(editingId));if(!src)return;
+  openEventDialog(null,{...src,id:null},true);fName.focus();fName.select();
+});
+
+
+const dayNames=["星期一","星期二","星期三","星期四","星期五","星期六","星期日"];
+
+repeatBtn.addEventListener("click",()=>{
+  if(editingId==null)return;
+  const src=currentEvents().find(x=>String(x.id)===String(editingId));
+  if(!src)return;
+
+  $("repeatSummary").innerHTML=`<b>${esc(src.name)}</b>　${src.start}–${src.end}<br>目前位於：${dayNames[src.day]}`;
+  const box=$("repeatDays");
+  box.innerHTML="";
+  for(let d=0;d<7;d++){
+    if(d===Number(src.day))continue;
+    const label=document.createElement("label");
+    label.style.cssText="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e4e7ec;border-radius:8px;cursor:pointer";
+    label.innerHTML=`<input type="checkbox" value="${d}"> ${dayNames[d]}`;
+    box.appendChild(label);
+  }
+  $("repeatConflict").classList.remove("show");
+  $("repeatConflict").textContent="";
+  repeatDialog.showModal();
+});
+
+$("repeatCancelBtn").addEventListener("click",()=>repeatDialog.close());
+
+$("repeatSaveBtn").addEventListener("click",()=>{
+  const src=currentEvents().find(x=>String(x.id)===String(editingId));
+  if(!src){repeatDialog.close();return}
+
+  const targets=[...$("repeatDays").querySelectorAll('input[type="checkbox"]:checked')].map(x=>Number(x.value));
+  if(!targets.length){showToast("請至少選擇一個星期。");return}
+
+  const allConflicts=[];
+  for(const d of targets){
+    const candidate={...src,id:null,day:d};
+    const hits=overlapsOf(candidate,[]);
+    if(hits.length){
+      allConflicts.push(`${dayNames[d]}：`+hits.map(x=>`「${x.name}」 ${x.start}–${x.end}`).join("、"));
+    }
+  }
+
+  if(allConflicts.length){
+    $("repeatConflict").textContent="以下時段已有活動，因此沒有建立任何副本：\n"+allConflicts.join("\n");
+    $("repeatConflict").classList.add("show");
+    return;
+  }
+
+  for(const d of targets){
+    currentEvents().push({...clone(src),id:nextId++,day:d});
+  }
+  save();render();repeatDialog.close();eventDialog.close();
+  showToast(`已套用到 ${targets.length} 個星期。`);
+});
+
+
+$("copyDayBtn").addEventListener("click",()=>{
+  $("copyDayConflict").classList.remove("show");
+  $("copyDayConflict").textContent="";
+  $("replaceTargetDay").checked=false;
+  copyDayDialog.showModal();
+});
+
+$("copyDayCancelBtn").addEventListener("click",()=>copyDayDialog.close());
+
+$("copyDaySaveBtn").addEventListener("click",()=>{
+  const srcDay=Number($("copyDaySource").value);
+  const targetDay=Number($("copyDayTarget").value);
+  const replace=$("replaceTargetDay").checked;
+
+  if(srcDay===targetDay){showToast("來源與目標不能是同一天。");return}
+
+  const sourceEvents=currentEvents().filter(e=>Number(e.day)===srcDay);
+  if(!sourceEvents.length){showToast("來源星期沒有任何活動。");return}
+
+  const targetEvents=currentEvents().filter(e=>Number(e.day)===targetDay);
+  if(targetEvents.length && !replace){
+    $("copyDayConflict").textContent=`${dayNames[targetDay]}目前已有 ${targetEvents.length} 筆活動。\n若確定要整天取代，請勾選「取代目標日原有作息」。`;
+    $("copyDayConflict").classList.add("show");
+    return;
+  }
+
+  if(replace && targetEvents.length){
+    const names=targetEvents.slice(0,4).map(x=>x.name).join("、")+(targetEvents.length>4?"……":"");
+    if(!confirm(`確定要刪除${dayNames[targetDay]}原有的 ${targetEvents.length} 筆活動（${names}），並以${dayNames[srcDay]}作息取代？`))return;
+    setCurrentEvents(currentEvents().filter(e=>Number(e.day)!==targetDay));
+  }
+
+  for(const e of sourceEvents){
+    currentEvents().push({...clone(e),id:nextId++,day:targetDay});
+  }
+  save();render();copyDayDialog.close();
+  showToast(`已將${dayNames[srcDay]}完整複製到${dayNames[targetDay]}。`);
+});
+
+$("catBtn").addEventListener("click",()=>{renderCategoryEditor();catDialog.showModal()});
+$("closeCatBtn").addEventListener("click",()=>catDialog.close());
+function renderCategoryEditor(){
+  const list=$("categoryList");list.innerHTML="";
+  state.categories.forEach((c,i)=>{
+    const row=document.createElement("div");row.className="cat-row";
+    row.innerHTML=`<input type="color" value="${c.color}"><input type="text" value="${esc(c.name)}"><button type="button" class="danger">刪除</button>`;
+    const [color,name,del]=row.children;
+    color.addEventListener("input",()=>{c.color=color.value;save();render()});
+    name.addEventListener("change",()=>{c.name=name.value.trim()||`類別${i+1}`;save();render();renderCategoryEditor()});
+    del.addEventListener("click",()=>{
+      if(state.categories.length===1){showToast("至少保留一個類別。");return}
+      const fallback=state.categories.find(x=>x.id!==c.id);
+      state.people.forEach(p=>p.stages.forEach(s=>s.events.forEach(e=>{if(e.cat===c.id)e.cat=fallback.id})));
+      state.categories=state.categories.filter(x=>x.id!==c.id);save();render();renderCategoryEditor();
+    });
+    list.appendChild(row);
+  });
+}
+$("addCatBtn").addEventListener("click",()=>{state.categories.push({id:"c"+Date.now(),name:"新類別",color:"#dfe7fd"});save();render();renderCategoryEditor()});
+
+$("resetBtn").addEventListener("click",()=>{
+  if(!confirm("要將目前人員／階段還原成範例作息嗎？目前階段的修改會被覆蓋。"))return;
+  setCurrentEvents(clone(sampleEvents));refreshNextId();save();render();showToast("目前階段已還原範例。");
+});
+$("exportBtn").addEventListener("click",()=>{
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="每週作息_"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href);
+});
+$("importFile").addEventListener("change",async ev=>{
+  const file=ev.target.files[0];if(!file)return;
+  try{
+    let data=JSON.parse(await file.text());
+    if(Array.isArray(data)){
+      // 最舊格式：純 events 陣列
+      data={events:data,categories:clone(defaultCategories)};
+    }
+    if(Array.isArray(data.events)){
+      // v0.6 格式：整份匯入為目前人員的一個新階段
+      const p=currentPerson();
+      const sid="s"+Date.now();
+      p.stages.push({id:sid,name:"匯入階段",startMonth:"",endMonth:"",note:"",events:clone(data.events)});
+      if(Array.isArray(data.categories)&&data.categories.length)state.categories=clone(data.categories);
+      activeStageId=sid;
+    }else if(Array.isArray(data.people)){
+      // v0.7 完整格式
+      state=data;
+      activePersonId=state.activePersonId||state.people[0]?.id;
+      const p=state.people.find(x=>x.id===activePersonId)||state.people[0];
+      activeStageId=state.activeStageId||p?.stages?.[0]?.id;
+    }else throw new Error("格式錯誤");
+    refreshNextId();save();renderContextSelectors();render();showToast("資料已匯入。");
+  }catch(err){showToast("匯入失敗："+err.message)}
+  ev.target.value="";
+});
+
+
+function renderContextSelectors(){
+  const ps=$("personSelect"), ss=$("stageSelect");
+  ps.innerHTML=
+    state.people.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")+
+    `<option disabled>────────</option><option value="__manage__">⚙ 管理人員…</option>`;
+  ps.value=activePersonId;
+
+  const p=currentPerson();
+  ss.innerHTML=
+    p.stages.map(s=>{
+      const range=formatStageRange(s);
+      return `<option value="${s.id}">${esc(s.name)}${range?`｜${esc(range)}`:""}</option>`;
+    }).join("")+
+    `<option disabled>────────</option><option value="__manage__">⚙ 管理階段…</option>`;
+  ss.value=activeStageId;
+  renderStageInfo();
+}
+
+
+function formatMonth(v){
+  if(!v)return "";
+  const [y,m]=v.split("-");
+  return `${y}.${m}`;
+}
+function formatStageRange(s){
+  const a=formatMonth(s.startMonth),b=formatMonth(s.endMonth);
+  if(a&&b)return `${a}–${b}`;
+  if(a)return `${a} 起`;
+  if(b)return `至 ${b}`;
+  return "";
+}
+function renderStageInfo(){
+  const s=currentStage(), box=$("stageInfo");
+  if(!s){box.classList.remove("show");box.innerHTML="";return}
+  const range=formatStageRange(s);
+  if(!range && !s.note){
+    box.classList.remove("show");box.innerHTML="";return;
+  }
+  box.innerHTML=`<span class="stage-meta">${esc(s.name)}</span>${range?`<span>${esc(range)}</span>`:""}${s.note?`<span>備註：${esc(s.note)}</span>`:""}`;
+  box.classList.add("show");
+}
+
+$("personSelect").addEventListener("change",()=>{
+  const v=$("personSelect").value;
+  if(v==="__manage__"){
+    $("personSelect").value=activePersonId;
+    renderPersonManager();
+    personDialog.showModal();
+    return;
+  }
+  activePersonId=v;
+  activeStageId=currentPerson().stages[0].id;
+  refreshNextId();save();renderContextSelectors();render();
+  showToast(`已切換到「${currentPerson().name}」。`);
+});
+
+$("stageSelect").addEventListener("change",()=>{
+  const v=$("stageSelect").value;
+  if(v==="__manage__"){
+    $("stageSelect").value=activeStageId;
+    renderStageManager();
+    stageDialog.showModal();
+    return;
+  }
+  activeStageId=v;
+  refreshNextId();save();renderContextSelectors();render();
+  showToast(`已切換到「${currentStage().name}」。`);
+});
+
+function renderPersonManager(){
+  const box=$("personList");box.innerHTML="";
+  state.people.forEach((p,i)=>{
+    const row=document.createElement("div");row.className="cat-row";
+    row.innerHTML=`<span style="text-align:center">${i+1}</span><input type="text" value="${esc(p.name)}"><button type="button" class="danger">刪除</button>`;
+    const name=row.children[1],del=row.children[2];
+    name.addEventListener("change",()=>{
+      p.name=name.value.trim()||`人員 ${i+1}`;save();renderContextSelectors();renderPersonManager();
+    });
+    del.addEventListener("click",()=>{
+      if(state.people.length===1){showToast("至少要保留一位人員。");return}
+      if(!confirm(`確定刪除「${p.name}」以及他／她的全部階段與作息紀錄？`))return;
+      state.people=state.people.filter(x=>x.id!==p.id);
+      if(activePersonId===p.id){
+        activePersonId=state.people[0].id;activeStageId=state.people[0].stages[0].id;
+      }
+      refreshNextId();save();renderContextSelectors();renderPersonManager();render();
+    });
+    box.appendChild(row);
+  });
+}
+
+$("closePersonBtn").addEventListener("click",()=>personDialog.close());
+$("addPersonBtn").addEventListener("click",()=>{
+  const n=state.people.length+1, pid="p"+Date.now(), sid="s"+(Date.now()+1);
+  state.people.push({id:pid,name:`孩子 ${n}`,stages:[{id:sid,name:"目前階段",startMonth:"",endMonth:"",note:"",events:[]}]});
+  activePersonId=pid;activeStageId=sid;save();renderContextSelectors();renderPersonManager();render();
+  showToast(`已新增「孩子 ${n}」。`);
+});
+
+function renderStageManager(){
+  const box=$("stageList");box.innerHTML="";
+  const p=currentPerson();
+
+  p.stages.forEach((s,i)=>{
+    const card=document.createElement("div");
+    card.className="stage-card"+(s.id===activeStageId?" active":"");
+    card.innerHTML=`
+      <div class="stage-card-top">
+        <div class="stage-order">
+          <button type="button" title="往上" ${i===0?"disabled":""}>↑</button>
+          <button type="button" title="往下" ${i===p.stages.length-1?"disabled":""}>↓</button>
+        </div>
+        <span style="font-size:12px;color:#667085">${i+1}</span>
+        <input type="text" value="${esc(s.name)}" aria-label="階段名稱">
+        <button type="button" class="danger">刪除</button>
+      </div>
+      <div class="stage-meta-grid">
+        <div class="stage-field">
+          <label>開始月份</label>
+          <input type="month" value="${s.startMonth||""}">
+        </div>
+        <div class="stage-field">
+          <label>結束月份</label>
+          <input type="month" value="${s.endMonth||""}">
+        </div>
+      </div>
+      <div class="stage-field">
+        <label>備註</label>
+        <textarea placeholder="例如：羽球訓練增加、改為線上英語…">${esc(s.note||"")}</textarea>
+      </div>`;
+
+    const up=card.querySelectorAll(".stage-order button")[0];
+    const down=card.querySelectorAll(".stage-order button")[1];
+    const name=card.querySelector('input[type="text"]');
+    const months=card.querySelectorAll('input[type="month"]');
+    const note=card.querySelector("textarea");
+    const del=card.querySelector(".danger");
+
+    up.addEventListener("click",()=>{
+      if(i<=0)return;
+      [p.stages[i-1],p.stages[i]]=[p.stages[i],p.stages[i-1]];
+      save();renderContextSelectors();renderStageManager();
+    });
+    down.addEventListener("click",()=>{
+      if(i>=p.stages.length-1)return;
+      [p.stages[i+1],p.stages[i]]=[p.stages[i],p.stages[i+1]];
+      save();renderContextSelectors();renderStageManager();
+    });
+    name.addEventListener("change",()=>{
+      s.name=name.value.trim()||`階段 ${i+1}`;
+      save();renderContextSelectors();renderStageManager();
+    });
+    months[0].addEventListener("change",()=>{
+      s.startMonth=months[0].value;
+      if(s.endMonth && s.startMonth && s.endMonth<s.startMonth){
+        showToast("結束月份不能早於開始月份。");
+        s.startMonth="";
+      }
+      save();renderContextSelectors();renderStageManager();
+    });
+    months[1].addEventListener("change",()=>{
+      s.endMonth=months[1].value;
+      if(s.endMonth && s.startMonth && s.endMonth<s.startMonth){
+        showToast("結束月份不能早於開始月份。");
+        s.endMonth="";
+      }
+      save();renderContextSelectors();renderStageManager();
+    });
+    note.addEventListener("change",()=>{
+      s.note=note.value.trim();
+      save();renderContextSelectors();
+    });
+    del.addEventListener("click",()=>{
+      if(p.stages.length===1){showToast("每位人員至少要保留一個階段。");return}
+      if(!confirm(`確定刪除「${s.name}」以及這個階段的全部作息紀錄？`))return;
+      p.stages=p.stages.filter(x=>x.id!==s.id);
+      if(activeStageId===s.id)activeStageId=p.stages[0].id;
+      refreshNextId();save();renderContextSelectors();renderStageManager();render();
+    });
+
+    box.appendChild(card);
+  });
+}
+
+$("closeStageBtn").addEventListener("click",()=>stageDialog.close());
+$("addStageBtn").addEventListener("click",()=>{
+  $("newStageName").value="";
+  $("newStageMode").value="copy";
+  addStageDialog.showModal();
+});
+$("addStageCancelBtn").addEventListener("click",()=>addStageDialog.close());
+$("addStageSaveBtn").addEventListener("click",()=>{
+  const name=$("newStageName").value.trim();
+  if(!name){showToast("請輸入階段名稱。");return}
+  const p=currentPerson();
+  const sid="s"+Date.now();
+  const events=$("newStageMode").value==="copy"?clone(currentEvents()):[];
+  events.forEach(e=>e.id=nextId++);
+  p.stages.push({id:sid,name,startMonth:"",endMonth:"",note:"",events});
+  activeStageId=sid;save();renderContextSelectors();renderStageManager();render();addStageDialog.close();
+  showToast(`已建立新階段「${name}」。`);
+});
+
+
+
+function updatePrintHeader(){
+  const p=currentPerson(), s=currentStage();
+  const range=s?formatStageRange(s):"";
+  $("printTitle").textContent=`${p?.name||""}｜${s?.name||""}　每週作息表`;
+  const meta=[];
+  if(range)meta.push(`階段：${range}`);
+  $("printMeta").innerHTML=meta.map(x=>`<span>${esc(x)}</span>`).join("");
+  $("printMeta").style.display=meta.length?"flex":"none";
+
+  const note=(s?.note||"").trim();
+  $("printNote").textContent=note?`備註：${note}`:"";
+  $("printNote").style.display=note?"block":"none";
+
+  $("printLegend").innerHTML=state.categories.map(c=>
+    `<span><i class="dot" style="background:${c.color}"></i>${esc(c.name)}</span>`
+  ).join("");
+}
+
+function enterPrintMode(){
+  updatePrintHeader();
+  document.body.classList.add("printing");
+  render();
+}
+function leavePrintMode(){
+  document.body.classList.remove("printing");
+  render();
+}
+
+$("printBtn").addEventListener("click",()=>{
+  closeDropdown("moreMenu");
+  closeDropdown("dataMenu");
+  enterPrintMode();
+  // 先讓 A4 版面完成重排，再叫出瀏覽器列印視窗。
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>window.print());
+  });
+});
+
+window.addEventListener("beforeprint",()=>{
+  if(!document.body.classList.contains("printing"))enterPrintMode();
+});
+window.addEventListener("afterprint",leavePrintMode);
+
+function closeDropdown(id){const d=$(id);if(d)d.removeAttribute("open")}
+["copyDayBtn","catBtn"].forEach(id=>$(id)?.addEventListener("click",()=>closeDropdown("moreMenu")));
+["exportBtn","resetBtn"].forEach(id=>$(id)?.addEventListener("click",()=>closeDropdown("dataMenu")));
+$("importFile")?.addEventListener("change",()=>closeDropdown("dataMenu"));
+
+
+document.addEventListener("pointerdown",ev=>{
+  ["moreMenu","dataMenu"].forEach(id=>{
+    const menu=$(id);
+    if(menu?.open && !menu.contains(ev.target)){
+      menu.removeAttribute("open");
+    }
+  });
+});
+
+document.addEventListener("keydown",ev=>{
+  if(ev.key==="Escape"){
+    closeDropdown("moreMenu");
+    closeDropdown("dataMenu");
+  }
+});
+
+function updateToolbarHeight(){
+  const bar=document.querySelector(".toolbar");
+  if(!bar)return;
+  document.documentElement.style.setProperty("--toolbar-h",`${Math.ceil(bar.getBoundingClientRect().height)}px`);
+}
+if(window.ResizeObserver){
+  new ResizeObserver(()=>updateToolbarHeight()).observe(document.querySelector(".toolbar"));
+}
+window.addEventListener("resize",()=>{updateToolbarHeight();render()});
+
+initGrid();load();renderContextSelectors();updateToolbarHeight();render();
+</script>
+</body>
+</html>
